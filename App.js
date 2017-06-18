@@ -96,6 +96,23 @@ export default class WordQuiz extends React.Component {
     return;
   }
 
+  async fetchData() {
+    try {
+      let response = await fetch('http://192.168.1.50:9000/json');
+      let responsJSON = await response.json();
+    } catch(error) {
+      console.error(error);
+    }
+    this.setState({
+      wordvalid: responseJSON.wordValid,
+      quizOrder: responseJSON.quizOrder,
+    });
+  }
+
+  componentDidMount() {
+    this.fetchData().done()
+  }
+
   render() {
     return (
       <View style={styles.container}>
