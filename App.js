@@ -77,27 +77,26 @@ function WordInfo2() {
 export default class WordQuiz extends React.Component {
   constructor() {
     super();
-    wordInfo = WordInfo();
     this.state = {
-      wordValid: wordInfo.wordValid,
-      quizOrder: wordInfo.quizOrder,
+      quiz: WordInfo2(),
       currentColor: 'black',
       pos: 0,
     }
   }
  
   handlePress(bool) {
-    const word = this.state.quizOrder[this.state.pos];
     const milliseconds = (new Date).getTime();
     console.log(milliseconds);
-    if (this.state.wordValid[word] == bool) {
+    const current = this.state.quiz[this.state.pos];
+    const word = current.word;
+    if (current.isWord == bool) {
       this.setState({
-        pos: (this.state.pos + 1) % this.state.quizOrder.length,
+        pos: (this.state.pos + 1) % this.state.quiz.length,
         currentColor: 'black',
       });
     } else {
       this.setState({
-        currentColor: this.state.wordValid[word] ? 'green' : 'red',
+        currentColor: current.isWord ? 'green' : 'red',
       });
     }
     return;
@@ -133,20 +132,21 @@ export default class WordQuiz extends React.Component {
   }
 
   componentDidMount() {
-    this.fetchData().done()
+    // this.fetchData().done()
   }
 
   render() {
+    const current = this.state.quiz[this.state.pos];
     return (
       <View style={styles.container}>
         <View>
         </View>
         <QuestionBox 
           color={this.state.currentColor} 
-          word={this.state.quizOrder[this.state.pos]}
+          word={current.name}
         />
-        <AnswerBox bgColor='green' text='YES' onPress={() => this.handlePress(true)}/>
-        <AnswerBox bgColor='red' text='NO' onPress={() => this.handlePress(false)}/>
+        <AnswerBox bgColor='green' text='YES' onPress={() => this.handlePress(1)}/>
+        <AnswerBox bgColor='red' text='NO' onPress={() => this.handlePress(0)}/>
       </View>
     );
   }
