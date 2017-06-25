@@ -36,8 +36,32 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'black',
   },
+  DefinitionBox:{
+    height: 80,
+    width: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: 'white',
+    borderWidth: 2,
+  },
+  DefinitionBoxText: {
+    fontFamily: 'monospace',
+    fontSize: 20,
+    color: 'black',
+  },
 });
 
+
+function DefinitionBox(props) {
+    return (
+      <TouchableOpacity
+        style={[styles.DefinitionBox, {backgroundColor: props.bgColor}]}>
+          <Text style={styles.DefinitionBoxText}>
+            {props.text}
+          </Text>
+      </TouchableOpacity>
+    );
+}
 
 function AnswerBox(props) {
     return (
@@ -50,9 +74,11 @@ function AnswerBox(props) {
 }
 
 function QuestionBox(props) {
+  const size = ~~(24/props.word.length) * 10; // Smaller font for larger words
   return (
     <Text
-      style={[styles.QuestionBoxText, {color: props.color}]}>
+      style={[styles.QuestionBoxText, {color: props.color, fontSize: size}]}
+      onPress={props.onPress}>
       {props.word}
     </Text>
   );
@@ -102,29 +128,21 @@ export default class WordQuiz extends React.Component {
     return;
   }
 
-  async fetchData() {
-    try {
-      let response = await fetch('http://50.114.241.53/json');
-      let responseJSON = await response.json();
-      console.log(responseJSON);
-      this.setState({
-        wordValid: responseJSON.wordValid,
-        quizOrder: responseJSON.quizOrder,
-      });
-    } catch(error) {
-      console.error(error);
-    }
+  handleQuestionPress() {
+    this.setState({
+      currentColor: 'black',
+    });
+    return;
   }
 
-  async fetchData2() {
+
+  async fetchData() {
     try {
       let response = await fetch('http://50.114.241.53/quiz');
       let responseJSON = await response.json();
       console.log(responseJSON);
       this.setState({
-        quiz: response.JSON,
-        wordValid: responseJSON.wordValid,
-        quizOrder: responseJSON.quizOrder,
+        quiz: responseJSON.quiz,
       });
     } catch(error) {
       console.error(error);
@@ -132,7 +150,7 @@ export default class WordQuiz extends React.Component {
   }
 
   componentDidMount() {
-    // this.fetchData().done()
+    this.fetchData().done()
   }
 
   render() {
@@ -141,9 +159,11 @@ export default class WordQuiz extends React.Component {
       <View style={styles.container}>
         <View>
         </View>
+        <DefinitionBox text="This is a long definition for testing purposes." />
         <QuestionBox 
           color={this.state.currentColor} 
           word={current.name}
+          onPress={() => this.handleQuestionPress()}
         />
         <AnswerBox bgColor='green' text='YES' onPress={() => this.handlePress(1)}/>
         <AnswerBox bgColor='red' text='NO' onPress={() => this.handlePress(0)}/>
