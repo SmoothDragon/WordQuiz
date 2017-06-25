@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import collections
 import random
 import sqlite3
 import time
@@ -22,6 +23,20 @@ def threeLetterWords(filename='/usr/local/share/dict/OWL14.txt'):
             if len(word) == 4:  # length + \n
                 yield word[:-1]  # lose linefeed
 
+def threeLetterWordsAndDefn(filename='/usr/local/share/dict/OWL14.def'):
+    '''Extract all three letter words
+    '''
+    with open(filename, 'rt') as infile:
+        for line in infile:
+            wordArray = line.split(' ', 1)
+            word = wordArray[0]
+            if len(wordArray) > 1:
+                defn = wordArray[1]
+            else:
+                defn = 'No definition available'
+            if len(word) == 3:
+                yield word, defn
+
 def substituteVowels(word):
     '''Substitute all vowels positions with all vowels
     >>> list(substituteVowels('CAR'))
@@ -33,20 +48,21 @@ def substituteVowels(word):
         if word[i] in VOWELS:
             yield from (word[:i]+v+word[i+1:] for v in VOWELS)
 
-def buildSQLiteFomWordDict(wordDict, filename='quiz.sqlite3'):
+def buildSQLiteFomWordDict(wordDict, wordDefn, filename='quiz.sqlite3'):
     conn = sqlite3.connect(filename)
     cur = conn.cursor()
     cur.execute('''CREATE TABLE IF NOT EXISTS questions(
-                     name       VARCHAR(15) NOT NULL
-                     ,dict      VARCHAR(255)
-                     ,isWord    INTEGER
-                     ,cardbox   INTEGER
-                     ,timestamp FLOAT
+                     name        VARCHAR(15) NOT NULL
+                     ,cardbox    INTEGER
+                     ,isWord     INTEGER
+                     ,dict       VARCHAR(15)
+                     ,definition VARCHAR(255)
+                     ,timestamp  FLOAT
                      );
                      ''')
     for word in wordDict:
-        cur.execute('INSERT INTO questions VALUES(?,?,?,?,?);',
-                     (word, 'OWL14', int(wordDict[word]), 0, time.time()))
+        cur.execute('INSERT INTO questions VALUES(?,?,?,?,?,?);',
+                     (word, 0, int(wordDict[word]), 'OWL14', wordDefn[word], time.time()))
     conn.commit()
 
 def isPlausible(word):
@@ -64,6 +80,8 @@ if __name__ == "__main__":
     doctest.testmod()
 
     W3 = list(threeLetterWords())
+    W3 = collections.defaultdict(lambda: '*** UNACCEPTABLE ***')
+    W3.update(threeLetterWordsAndDefn())
     # Make plausible words via vowel substitution
     P3 = {w:False for word in W3 for w in substituteVowels(word) if isPlausible(w)}
     # Pluralize all two letter words to make plausible 3s
@@ -78,4 +96,4 @@ if __name__ == "__main__":
         P3[word] = True
     # Put word list in SQLite3 database
     # P3 = {k:P3[k] for k in random.sample(list(P3), 10)}  # Random subset for testing
-    buildSQLiteFomWordDict(P3)
+    buildSQLiteFomWordDict(P3, W3)
