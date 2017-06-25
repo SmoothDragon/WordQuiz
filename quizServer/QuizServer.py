@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from gevent import monkey; monkey.patch_all()
 import gevent
@@ -10,9 +10,15 @@ import sqlite3
 import sys
 import time
 import tty
+import abc
+
+class QuizDataBase(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def getQuestions(self, limit=None):
+        raise NotImplementedError('getQuestions must be instantiated.')
 
 
-class quizDB_sqlite3:
+class QuizDataBase_sqlite3(QuizDataBase):
     '''Provides sqecific services:
     getQuestions
     This particular instantiation uses sqlite3
@@ -56,7 +62,7 @@ def main():
         limit = int(sys.argv[1])
     else:
         limit = 10
-    quizDB = quizDB_sqlite3('quiz.sqlite3')
+    quizDB = QuizDataBase_sqlite3('quiz.sqlite3')
     quiz = quizServer(quizDB)
     quiz.run(host='0.0.0.0', port=80, server='gevent')
 
