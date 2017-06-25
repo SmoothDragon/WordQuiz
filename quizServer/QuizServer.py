@@ -12,31 +12,54 @@ import time
 import tty
 
 
-class quizServer(bottle.Bottle):
-    def __init__(self, sqlfile, *args, **kwargs):
-        super(self.__class__, self).__init__(*args, **kwargs)
-        self.conn = sqlite3.connect(sqlfile)
+class quizDB_sqlite3:
+    '''Provides sqecific services:
+    getQuestions
+    This particular instantiation uses sqlite3
+    '''
+    def __init__(self, filename):
+        self.conn = sqlite3.connect(filename)
         self.conn.row_factory = sqlite3.Row  # Allow dict access for each row
-        self.get('/quiz', callback=self.returnQuiz)
 
-    def __del__(self):
-        self.conn.close()
-
-    def returnQuiz(self, limit=1000, filename='quiz.sqlite3'):
-        cur = self.conn.cursor()
-        cur.execute('''
+    def getQuestions(self, limit=None):
+        query = '''
             SELECT name, dict, isWord, cardbox, MAX(timestamp) AS timestamp
             FROM questions
             GROUP BY name
             ORDER BY timestamp +  65536 * cardbox*cardbox
-            LIMIT ''' + '%d;' % limit)
-        return {'quiz': [dict(item) for item in cur]}
+            '''
+        if limit is None:
+            postscript = ';'
+        else:
+            postscript = 'LIMIT %d;' % limit
+        cur = self.conn.cursor()
+        cur.execute(query + postscript)
+        return [dict(item) for item in cur]
+
+    def __del__(self):
+        self.conn.close()
 
 
-if __name__ == '__main__':
+class quizServer(bottle.Bottle):
+    def __init__(self, quizDB, *args, **kwargs):
+        super(self.__class__, self).__init__(*args, **kwargs)
+        self.get('/quiz', callback=self.returnQuiz)
+        self.DB = quizDB
+
+    def returnQuiz(self, limit=None):
+        questions = self.DB.getQuestions(limit=limit)
+        return {'quiz': questions}
+
+
+def main():
     if len(sys.argv) > 1:
         limit = int(sys.argv[1])
     else:
         limit = 10
-    quiz = quizServer('quiz.sqlite3')
+    quizDB = quizDB_sqlite3('quiz.sqlite3')
+    quiz = quizServer(quizDB)
     quiz.run(host='0.0.0.0', port=80, server='gevent')
+
+
+if __name__ == '__main__':
+    main()
