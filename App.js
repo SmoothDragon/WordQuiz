@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
     color: 'black',
   },
   DefinitionBox:{
-    height: 80,
+    height: 200,
     width: 300,
     alignItems: 'center',
     justifyContent: 'center',
@@ -107,6 +107,7 @@ export default class WordQuiz extends React.Component {
       quiz: WordInfo2(),
       currentColor: 'black',
       pos: 0,
+      defintion: '',
     }
   }
  
@@ -119,18 +120,22 @@ export default class WordQuiz extends React.Component {
       this.setState({
         pos: (this.state.pos + 1) % this.state.quiz.length,
         currentColor: 'black',
+        definition: '',
       });
     } else {
       this.setState({
         currentColor: current.isWord ? 'green' : 'red',
+        definition: current.definition,
       });
     }
     return;
   }
 
   handleQuestionPress() {
+    const current = this.state.quiz[this.state.pos];
     this.setState({
       currentColor: 'black',
+      definition: current.definition,
     });
     return;
   }
@@ -159,7 +164,7 @@ export default class WordQuiz extends React.Component {
       <View style={styles.container}>
         <View>
         </View>
-        <DefinitionBox text="This is a long definition for testing purposes." />
+        <DefinitionBox text={this.state.definition} />
         <QuestionBox 
           color={this.state.currentColor} 
           word={current.name}
