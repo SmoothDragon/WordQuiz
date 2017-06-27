@@ -4,6 +4,7 @@ from gevent import monkey; monkey.patch_all()
 import gevent
 
 import bottle
+import argparse
 import contextlib
 import itertools
 import sqlite3
@@ -11,6 +12,8 @@ import sys
 import time
 import tty
 import abc
+
+from kleinBottle import kleinBottle
 
 class QuizDataBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -45,6 +48,7 @@ class QuizDataBase_sqlite3(QuizDataBase):
     def __del__(self):
         self.conn.close()
 
+"""
 
 class quizServer(bottle.Bottle):
     def __init__(self, quizDB, *args, **kwargs):
@@ -65,6 +69,36 @@ def main():
     quizDB = QuizDataBase_sqlite3('quiz.sqlite3')
     quiz = quizServer(quizDB)
     quiz.run(host='0.0.0.0', port=80, server='gevent')
+"""
+
+def parseArguments():
+    # Argument parsing
+    parser = argparse.ArgumentParser(description='Start advisor service.')
+    parser.add_argument('-p', action='store', default='8880',
+                        dest='port', help='Port (default 8880)')
+    parser.add_argument('-d', action='store_true', default=False,
+                        dest='daemon', help='Run as daemon')
+    parser.add_argument('-l', action='store_true', default=False,
+                        dest='logger', help='Log service activity')
+    parser.add_argument('-f', action='store', dest='logfile',
+                        default='/var/log/advisor/advisor.log',
+                        help='Logfile name')
+    parser.add_argument('-t', action='store_true', default=False,
+                        dest='testing', help='Run doctests')
+    parser.add_argument('--datafile', action='store', dest='datafile',
+                        default='/var/lib/advisor/advisor.sqlite3',
+                        help='Data directory')
+    return parser.parse_args()
+
+def testCallback(**args):
+    quizDB = QuizDataBase_sqlite3('quiz.sqlite3')
+    quiz = quizBD.getQuestions()
+    return {'quiz': quiz}, 'application/json', 200
+
+def main():
+    args = parseArguments()
+    example = KleinBottle(testCallback)
+    example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
 
 if __name__ == '__main__':
