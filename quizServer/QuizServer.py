@@ -13,7 +13,7 @@ import time
 import tty
 import abc
 
-from kleinBottle import kleinBottle
+from klein.kleinBottle import KleinBottle
 
 class QuizDataBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -90,9 +90,11 @@ def parseArguments():
                         help='Data directory')
     return parser.parse_args()
 
-def testCallback(**args):
+def testCallback(pathList, **args):
+    if len(pathList) == 0 or pathList[0] != 'quiz':
+        return {}, 'application/json', 404
     quizDB = QuizDataBase_sqlite3('quiz.sqlite3')
-    quiz = quizBD.getQuestions()
+    quiz = quizDB.getQuestions()
     return {'quiz': quiz}, 'application/json', 200
 
 def main():

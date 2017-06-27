@@ -47,6 +47,8 @@ class KleinBottle(bottle.Bottle):
         # Send relevant information so resolver can be independent of bottle
         response, content_type, status = self.callback(**requestData)
         # Set the appropriate bottle references after call is finished
+        if status == 404:
+            bottle.abort(404, 'File not found')
         bottle.response.content_type = content_type
         bottle.response.status = status
         return response
