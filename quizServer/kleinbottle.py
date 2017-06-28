@@ -14,6 +14,7 @@ class KleinBottle(bottle.Bottle):
         response        {'info': 'lots of information'}
         content_type    json
         status          200
+    TODO: Add WebFramework dependency injection
     '''
     def __init__(self, callback, *args, **kwargs):
         super(self.__class__, self).__init__(*args, **kwargs)
@@ -22,7 +23,12 @@ class KleinBottle(bottle.Bottle):
         self.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
                    callback=self.processRequest)
 
-    def parseURL(self, url):
+    @classmethod
+    def parseURL(cls, url):
+        '''
+        >>> KleinBottle.parseURL('/one/two/three?a=1&b=2&b=3')
+        (['one', 'two', 'three'], {'b': ['2', '3'], 'a': ['1']})
+        '''
         scheme, netloc, path, queryString, fragment = urllib.parse.urlsplit(url)
         query = urllib.parse.parse_qs(queryString)
         pathList = path.strip('/').split('/')
@@ -86,4 +92,6 @@ def main():
     example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
 if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
     main()

@@ -13,7 +13,7 @@ import time
 import tty
 import abc
 
-from klein.kleinBottle import KleinBottle
+from kleinbottle import KleinBottle
 
 class QuizDataBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
