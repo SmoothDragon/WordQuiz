@@ -8,36 +8,73 @@ import bottle
 import urllib
 import flask
 
+class Request:
+    __slots__ = 'url method json'.split()
 
 class bottleWrapper(bottle.Bottle):
-    def __init__(self, *args, **kwargs):
+    '''
+    Expected to have:
+        run
+        response
+        request
+        abort
+    '''
+    def __init__(self, routeAll, *args, **kwargs):
         super(self.__class__, self).__init__(*args, **kwargs)
-        self.response = bottle.response
-        self.request = bottle.request
-        self.abort = bottle.abort
+        self.routeAll(routeAll)
+
+    def routeAll(self, callback):
+        # Send all requests to one function
+        self.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], callback=callback)
+
+    def getRequestInfo(self):
+        request = Request()
+        request.url = bottle.request.url
+        request.method = bottle.request.method
+        if bottle.request.json is None:
+            request.json = {}
+        else:
+            request.json = dict(bottle.request.json)
+        return request
+
+    def setResponseInfo(self,
+                   status=200,
+                   content_type='application/html',
+                   ):
+        if status == 404:
+            bottle.abort(404, 'File not found')
+        bottle.response.status = status
+        bottle.response.content_type = content_type
+
+
+class flaskWrapper(flask.Flask):
+    '''
+    Expected to have:
+        run
+        response
+        request
+        abort
+    '''
+    def __init__(self, *args, **kwargs):
+        super(self.__class__, self).__init__(__name__, *args, **kwargs)
+        self.response = flask.Response
+        self.request = flask.request
+        self.abort = flask.abort
+
 
 class Klein:
-    '''Deriviative of Bottle that sends all requests to one callback resolver.
+    '''Deriviative of Web Framework that sends all requests to one callback resolver.
     The callback should return
         response        {'info': 'lots of information'}
         content_type    json
         status          200
     TODO: Add WebFramework dependency injection
     '''
-    def __init__(self, callback, 
-                 framework=bottle.Bottle,
-                 response=bottle.response,
-                 request=bottle.request,
-                 abort=bottle.abort,
+    def __init__(self, callback,
+                 framework=bottleWrapper,
                  *args, **kwargs):
-        super(self.__class__, self).__init__(*args, **kwargs)
-        self.framework = framework(*args, **kwargs)
+        self.framework = framework(routeAll=self.processRequest, *args, **kwargs)
         self.callback = callback
-        # Send all requests to one function
-        self.framework.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], callback=self.processRequest)
-        self.response = response
-        self.request = request
-        self.abort = abort
 
     def run(self, *args, **kwargs):
         self.framework.run(*args, **kwargs)
@@ -54,28 +91,22 @@ class Klein:
         return pathList, query
 
     def getRequestInfo(self):
-        pathList, query = self.parseURL(self.request.url)
-        json = dict(self.request.json) if self.request.json is not None else {}
-        method = self.request.method
+        request = self.framework.getRequestInfo()
+        pathList, query = self.parseURL(request.url)
         # headers = dict(self.request.body.headers)
-        body = self.request.body.readlines()
+        # body = self.framework.request.body.readlines()
         return dict(
             pathList=pathList,
             query=query,
-            json=json,
-            method=method,
-            body=body,
+            json=request.json,
+            method=request.method,
             )
 
     def processRequest(self, url):
         requestData = self.getRequestInfo()
         # Send relevant information so resolver can be independent of bottle
         response, content_type, status = self.callback(**requestData)
-        if status == 404:
-            self.abort(404, 'File not found')
-        # Set the appropriate references after call is finished
-        self.response.content_type = content_type
-        self.response.status = status
+        self.framework.setResponseInfo(status=status, content_type=content_type)
         return response
 
 
@@ -112,10 +143,27 @@ def main():
     example = Klein(testCallback)
     example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
+def mainFlask():
+    args = parseArguments()
+    example = Klein(testCallback, framework=flaskWrapper)
+    example.run(host='0.0.0.0', port=int(args.port), server='gevent')
+
 def main2():
     args = parseArguments()
-    example = Klein(testCallback, framework=flask.Flask)
-    example.run(host='0.0.0.0', port=int(args.port), server='gevent')
+    app = flask.Flask(__name__)
+    def hello(path):
+        print('path: %s' % path)
+        print('method: %s' % flask.request.method)
+        print('json: %s' % flask.request.json)
+        print('url: %s' % flask.request.url)
+        # print(flask.path)
+        return 'path chosen: %s' % path
+    app.add_url_rule('/', view_func=hello, defaults={'path': ''})
+    app.add_url_rule('/<path:path>', view_func=hello)
+    app.run(host='0.0.0.0', port=int(args.port))
+
+    # example = Klein(testCallback, framework=flask.Flask)
+    # example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
 if __name__ == '__main__':
     import doctest
