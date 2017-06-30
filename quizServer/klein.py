@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
 
-from gevent import monkey; monkey.patch_all()
-import gevent
+# from gevent import monkey; monkey.patch_all()
+# import gevent
 
 import argparse
 import bottle
 import urllib
 import flask
+import sys
+import time
 
 class Request:
     __slots__ = 'url method json'.split()
 
 class bottleWrapper(bottle.Bottle):
-    '''
-    Expected to have:
-        run
-        response
-        request
-        abort
-    '''
     def __init__(self, routeAll, *args, **kwargs):
         super(self.__class__, self).__init__(*args, **kwargs)
         self.routeAll(routeAll)
@@ -48,18 +43,56 @@ class bottleWrapper(bottle.Bottle):
 
 
 class flaskWrapper(flask.Flask):
-    '''
-    Expected to have:
-        run
-        response
-        request
-        abort
-    '''
-    def __init__(self, *args, **kwargs):
+    def __init__(self, routeAll, *args, **kwargs):
         super(self.__class__, self).__init__(__name__, *args, **kwargs)
-        self.response = flask.Response
-        self.request = flask.request
-        self.abort = flask.abort
+        self.routeAll(routeAll)
+
+    def routeAll(self, callback):
+        # Send all requests to one function
+        self.add_url_rule('/', view_func=callback, defaults={'path': ''})
+        self.add_url_rule('/<path:path>', view_func=callback)
+        print("Added rules!")
+
+    def getRequestInfo(self):
+        request = Request()
+        request.url = flask.request.url
+        print(request.url, file=sys.stderr)
+        request.method = flask.request.method
+        request.json = flask.request.json
+        return request
+
+    def setResponseInfo(self,
+                   status=200,
+                   content_type='application/html',
+                   ):
+        return
+
+
+class mockWrapper:
+    def __init__(self, routeAll, *args, **kwargs):
+        self.routeAll(routeAll)
+
+    def routeAll(self, callback):
+        # Send all requests to one function
+        self.callback = callback
+
+    def getRequestInfo(self):
+        request = Request()
+        request.url = 'http://localhost:8880/one/two/three?a=1&b=2&b=3'
+        request.method = 'GET'
+        request.json = {}
+        return request
+
+    def setResponseInfo(self,
+                   status=200,
+                   content_type='application/html',
+                   ):
+        return
+
+    def run(self, delay=5, *args, **kwargs):
+        while True:
+            self.callback('Unused URL')
+            time.sleep(delay)
 
 
 class Klein:
@@ -103,6 +136,7 @@ class Klein:
             )
 
     def processRequest(self, url):
+        print('Request initaited', file=sys.stderr)
         requestData = self.getRequestInfo()
         # Send relevant information so resolver can be independent of bottle
         response, content_type, status = self.callback(**requestData)
@@ -140,13 +174,10 @@ def testCallback(**args):
 
 def main():
     args = parseArguments()
-    example = Klein(testCallback)
-    example.run(host='0.0.0.0', port=int(args.port), server='gevent')
-
-def mainFlask():
-    args = parseArguments()
-    example = Klein(testCallback, framework=flaskWrapper)
-    example.run(host='0.0.0.0', port=int(args.port), server='gevent')
+    # example = Klein(testCallback)
+    # example = Klein(testCallback, framework=flaskWrapper)
+    example = Klein(testCallback, framework=mockWrapper)
+    example.run(host='0.0.0.0', port=int(args.port))
 
 def main2():
     args = parseArguments()
@@ -162,8 +193,6 @@ def main2():
     app.add_url_rule('/<path:path>', view_func=hello)
     app.run(host='0.0.0.0', port=int(args.port))
 
-    # example = Klein(testCallback, framework=flask.Flask)
-    # example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
 if __name__ == '__main__':
     import doctest
