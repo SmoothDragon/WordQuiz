@@ -8,7 +8,7 @@ import bottle
 import urllib
 
 
-class KleinBottle(bottle.Bottle):
+class Klein(bottle.Bottle):
     '''Deriviative of Bottle that sends all requests to one callback resolver.
     The callback should return
         response        {'info': 'lots of information'}
@@ -26,7 +26,7 @@ class KleinBottle(bottle.Bottle):
     @classmethod
     def parseURL(cls, url):
         '''
-        >>> KleinBottle.parseURL('/one/two/three?a=1&b=2&b=3')
+        >>> Klein.parseURL('/one/two/three?a=1&b=2&b=3')
         (['one', 'two', 'three'], {'b': ['2', '3'], 'a': ['1']})
         '''
         scheme, netloc, path, queryString, fragment = urllib.parse.urlsplit(url)
@@ -88,7 +88,7 @@ def testCallback(**args):
 
 def main():
     args = parseArguments()
-    example = KleinBottle(testCallback)
+    example = Klein(testCallback)
     example.run(host='0.0.0.0', port=int(args.port), server='gevent')
 
 if __name__ == '__main__':
