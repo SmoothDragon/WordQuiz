@@ -14,15 +14,6 @@ import abc
 from pprint import pprint, pformat
 
 
-class Request:
-    __slots__ = 'url method json'.split()
-    def __init__(self, url=None, method=None, json=None):
-        self.url = url
-        self.method = method
-        self.json = json
-
-    def __repr__(self):
-        return pformat({s: getattr(self, s) for s in self.__slots__})
 
 
 class Response:
@@ -31,21 +22,21 @@ class Response:
 
 class AbstractWebFramework(abc.ABC):
 
+    def getRequestInfo(self) -> dict:
+        '''This method calls the implemented abstract methods to create the
+        appropriate request dictionary.
+        '''
+        return dict(
+            url=self.getURL(),
+            method=self.getMethod(),
+            json=self.getJSON(),
+            )
+
     @abc.abstractmethod
     def routeAll(self, callback):
         '''All requests should be sent to *one* callback function.
         '''
         pass
-
-    @abc.abstractmethod
-    def getRequestInfo(self) -> Request:
-        '''Extract Request from Web Framework
-        '''
-        request = Request()
-        request.url = 'http://localhost:80/one/two/three?a=1&b=2&b=3'
-        request.method = 'GET'
-        request.json = {}
-        return request
 
     @abc.abstractmethod
     def setResponseInfo(self) -> Response:
@@ -55,7 +46,6 @@ class AbstractWebFramework(abc.ABC):
         response.status = 200
         return response
 
-    """
     @abc.abstractmethod
     def getURL(self):
         '''Get URL from framework
@@ -73,27 +63,31 @@ class AbstractWebFramework(abc.ABC):
         '''Get JSON from framework
         '''
         pass
-    """
 
-class bottleWebFramework(bottle.Bottle, AbstractWebFramework):
+class BottleWebFramework(bottle.Bottle, AbstractWebFramework):
     def __init__(self, callback, *args, **kwargs):
         super(self.__class__, self).__init__(*args, **kwargs)
         self.routeAll(callback)
+        self.callback = callback
 
     def routeAll(self, callback):
         # Send all requests to one function
         self.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-                   callback=callback)
+                   callback=self.processRequest)
 
-    def getRequestInfo(self):
-        request = Request()
-        request.url = bottle.request.url
-        request.method = bottle.request.method
+    def getURL(self):
+        return bottle.request.url
+
+    def getMethod(self):
+        return bottle.request.method
+
+    def getJSON(self):
         if bottle.request.json is None:
-            request.json = {}
+            result = {}
         else:
-            request.json = dict(bottle.request.json)
-        return request
+            result = dict(bottle.request.json)
+        return result
+
 
     def setResponseInfo(self,
                    status=200,
@@ -105,6 +99,14 @@ class bottleWebFramework(bottle.Bottle, AbstractWebFramework):
         bottle.response.status = status
         bottle.response.content_type = content_type
         return response
+
+    def processRequest(self, url):
+        print('Request initiated', file=sys.stderr)
+        requestData = self.getRequestInfo()
+        # Send relevant information so resolver can be independent of bottle
+        response, content_type, status = self.callback(**requestData)
+        answer = self.setResponseInfo(status=status, content_type=content_type, response=response)
+        return answer
 
 
 class flaskWebFramework(flask.Flask):
@@ -139,32 +141,40 @@ class flaskWebFramework(flask.Flask):
         return answer
 
 
-class mockWebFramework(AbstractWebFramework):
-    def __init__(self, callback=None, *args, **kwargs):
+class MockWebFramework(AbstractWebFramework):
+    '''This mock framework initiates the callback every _delay_ seconds
+    with the static web information provided.
+    '''
+    def __init__(self, url, method, json, callback=None, *args, **kwargs):
         '''
-        >>> issubclass(mockWebFramework, AbstractWebFramework)
+        >>> issubclass(MockWebFramework, AbstractWebFramework)
         True
-        >>> isinstance(mockWebFramework(), AbstractWebFramework)
+        >>> isinstance(MockWebFramework(), AbstractWebFramework)
         True
         '''
+        self.url = url
+        self.method = method
+        self.json = json
         self.routeAll(callback)
 
     def routeAll(self, callback):
         # Send all requests to one function
         self.callback = callback
 
-    def getRequestInfo(self):
-        request = Request()
-        request.url = 'http://localhost:8880/one/two/three?a=1&b=2&b=3'
-        request.method = 'GET'
-        request.json = {}
-        return request
-
     def setResponseInfo(self,
                    status=200,
                    content_type='application/html',
                    ):
         return
+
+    def getURL(self):
+        return self.url
+
+    def getMethod(self):
+        return self.method
+
+    def getJSON(self):
+        return self.json
 
     def run(self, delay=5, *args, **kwargs):
         while True:
@@ -181,7 +191,7 @@ class Klein:
     TODO: Add WebFramework dependency injection
     '''
     def __init__(self, callback,
-                 framework=bottleWebFramework,
+                 framework=BottleWebFramework,
                  *args, **kwargs):
         self.framework = framework(callback=self.processRequest, *args, **kwargs)
         self.callback = callback
@@ -251,9 +261,9 @@ def testCallback(**args):
 
 def main():
     args = parseArguments()
-    example = Klein(testCallback)
+    example = BottleWebFramework(testCallback)
     # example = Klein(testCallback, framework=flaskWebFramework)
-    # example = Klein(testCallback, framework=mockWebFramework)
+    # example = Klein(testCallback, framework=MockWebFramework)
     example.run(host='0.0.0.0', port=int(args.port))
 
 def main2():
