@@ -9,18 +9,81 @@ import urllib
 import flask
 import sys
 import time
+import abc
+
+from pprint import pprint, pformat
+
 
 class Request:
     __slots__ = 'url method json'.split()
+    def __init__(self, url=None, method=None, json=None):
+        self.url = url
+        self.method = method
+        self.json = json
 
-class bottleWrapper(bottle.Bottle):
-    def __init__(self, routeAll, *args, **kwargs):
+    def __repr__(self):
+        return pformat({s: getattr(self, s) for s in self.__slots__})
+
+
+class Response:
+    __slots__ = 'content content_type status'.split()
+
+
+class AbstractWebFramework(abc.ABC):
+
+    @abc.abstractmethod
+    def routeAll(self, callback):
+        '''All requests should be sent to *one* callback function.
+        '''
+        pass
+
+    @abc.abstractmethod
+    def getRequestInfo(self) -> Request:
+        '''Extract Request from Web Framework
+        '''
+        request = Request()
+        request.url = 'http://localhost:80/one/two/three?a=1&b=2&b=3'
+        request.method = 'GET'
+        request.json = {}
+        return request
+
+    @abc.abstractmethod
+    def setResponseInfo(self) -> Response:
+        response = Response()
+        response.content = 'AbstractWebFramework example response.'
+        response.content_type = 'application/html'
+        response.status = 200
+        return response
+
+    """
+    @abc.abstractmethod
+    def getURL(self):
+        '''Get URL from framework
+        '''
+        pass
+
+    @abc.abstractmethod
+    def getMethod(self):
+        '''Get REST method from framework
+        '''
+        pass
+
+    @abc.abstractmethod
+    def getJSON(self):
+        '''Get JSON from framework
+        '''
+        pass
+    """
+
+class bottleWebFramework(bottle.Bottle, AbstractWebFramework):
+    def __init__(self, callback, *args, **kwargs):
         super(self.__class__, self).__init__(*args, **kwargs)
-        self.routeAll(routeAll)
+        self.routeAll(callback)
 
     def routeAll(self, callback):
         # Send all requests to one function
-        self.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], callback=callback)
+        self.route('<url:re:.*>', ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+                   callback=callback)
 
     def getRequestInfo(self):
         request = Request()
@@ -35,17 +98,19 @@ class bottleWrapper(bottle.Bottle):
     def setResponseInfo(self,
                    status=200,
                    content_type='application/html',
+                   response='Ok'
                    ):
         if status == 404:
             bottle.abort(404, 'File not found')
         bottle.response.status = status
         bottle.response.content_type = content_type
+        return response
 
 
-class flaskWrapper(flask.Flask):
-    def __init__(self, routeAll, *args, **kwargs):
+class flaskWebFramework(flask.Flask):
+    def __init__(self, callback, *args, **kwargs):
         super(self.__class__, self).__init__(__name__, *args, **kwargs)
-        self.routeAll(routeAll)
+        self.routeAll(callback)
 
     def routeAll(self, callback):
         # Send all requests to one function
@@ -57,20 +122,32 @@ class flaskWrapper(flask.Flask):
         request = Request()
         request.url = flask.request.url
         print(request.url, file=sys.stderr)
-        request.method = flask.request.method
-        request.json = flask.request.json
+        request.method = 'GET'
+        request.json = {}
+        # request.method = flask.request.method
+        # request.json = flask.request.json
         return request
 
     def setResponseInfo(self,
                    status=200,
                    content_type='application/html',
+                   response='Ok'
                    ):
-        return
+        return flask.jsonify(response)
+        answer = flask.Response(flask.jsonify(response), content_type=content_type)
+        answer.status_code = status
+        return answer
 
 
-class mockWrapper:
-    def __init__(self, routeAll, *args, **kwargs):
-        self.routeAll(routeAll)
+class mockWebFramework(AbstractWebFramework):
+    def __init__(self, callback=None, *args, **kwargs):
+        '''
+        >>> issubclass(mockWebFramework, AbstractWebFramework)
+        True
+        >>> isinstance(mockWebFramework(), AbstractWebFramework)
+        True
+        '''
+        self.routeAll(callback)
 
     def routeAll(self, callback):
         # Send all requests to one function
@@ -104,19 +181,19 @@ class Klein:
     TODO: Add WebFramework dependency injection
     '''
     def __init__(self, callback,
-                 framework=bottleWrapper,
+                 framework=bottleWebFramework,
                  *args, **kwargs):
-        self.framework = framework(routeAll=self.processRequest, *args, **kwargs)
+        self.framework = framework(callback=self.processRequest, *args, **kwargs)
         self.callback = callback
 
     def run(self, *args, **kwargs):
         self.framework.run(*args, **kwargs)
 
     @classmethod
-    def parseURL(cls, url):
+    def parseURL(cls, url) -> (list, dict):
         '''
-        >>> Klein.parseURL('/one/two/three?a=1&b=2&b=3')
-        (['one', 'two', 'three'], {'b': ['2', '3'], 'a': ['1']})
+        >>> pprint(Klein.parseURL('/one/two/three?a=1&b=2&b=3'))
+        (['one', 'two', 'three'], {'a': ['1'], 'b': ['2', '3']})
         '''
         scheme, netloc, path, queryString, fragment = urllib.parse.urlsplit(url)
         query = urllib.parse.parse_qs(queryString)
@@ -140,8 +217,8 @@ class Klein:
         requestData = self.getRequestInfo()
         # Send relevant information so resolver can be independent of bottle
         response, content_type, status = self.callback(**requestData)
-        self.framework.setResponseInfo(status=status, content_type=content_type)
-        return response
+        answer = self.framework.setResponseInfo(status=status, content_type=content_type, response=response)
+        return answer
 
 
 
@@ -174,9 +251,9 @@ def testCallback(**args):
 
 def main():
     args = parseArguments()
-    # example = Klein(testCallback)
-    # example = Klein(testCallback, framework=flaskWrapper)
-    example = Klein(testCallback, framework=mockWrapper)
+    example = Klein(testCallback)
+    # example = Klein(testCallback, framework=flaskWebFramework)
+    # example = Klein(testCallback, framework=mockWebFramework)
     example.run(host='0.0.0.0', port=int(args.port))
 
 def main2():
